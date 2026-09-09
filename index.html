@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>J.A.R.V.I.S. — Micrófono</title>
+
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #050b18;
+      color: white;
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+
+    .contenedor {
+      width: 90%;
+      max-width: 450px;
+    }
+
+    .orb {
+      width: 150px;
+      height: 150px;
+      margin: 0 auto 30px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #dff8ff 0%, #38cfff 25%, #087cff 55%, #032b70 75%, #00112e 100%);
+      box-shadow:
+        0 0 25px #00aaff,
+        0 0 60px #0077ff,
+        0 0 100px #004cff;
+      animation: respirar 2s infinite ease-in-out;
+    }
+
+    @keyframes respirar {
+      0%, 100% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.08);
+      }
+    }
+
+    h1 {
+      letter-spacing: 4px;
+      font-size: 24px;
+    }
+
+    #estado {
+      margin: 20px;
+      color: #8bdcff;
+    }
+
+    button {
+      border: 1px solid #24bfff;
+      background: #061a35;
+      color: white;
+      padding: 15px 25px;
+      border-radius: 30px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #0b315c;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="contenedor">
+
+    <div class="orb"></div>
+
+    <h1>J.A.R.V.I.S.</h1>
+
+    <div id="estado">
+      MICRÓFONO PREPARADO
+    </div>
+
+    <button id="boton" onclick="controlarMicrofono()">
+      🎙️ HABLAR
+    </button>
+
+  </div>
+
+<script>
+
+let grabando = false;
+let grabador;
+let trozos = [];
+
+async function controlarMicrofono() {
+
+  if (grabando) {
+    detenerGrabacion();
+    return;
+  }
+
+  try {
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: true
+    });
+
+    trozos = [];
+
+    let tipo = "audio/webm";
+
+    if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+      tipo = "audio/webm;codecs=opus";
+    }
+
+    grabador = new MediaRecorder(stream, {
+      mimeType: tipo
+    });
+
+    grabador.ondataavailable = function(event) {
+      if (event.data.size > 0) {
+        trozos.push(event.data);
+      }
+    };
+
+    grabador.onstop = function() {
+
+      const audio = new Blob(trozos, {
+        type: grabador.mimeType
+      });
+
+      enviarAudio(audio);
+
+      stream.getTracks().forEach(track => track.stop());
+    };
+
+    grabador.start();
+
+    grabando = true;
+
+    document.getElementById("estado").textContent =
+      "JARVIS ESTÁ ESCUCHANDO...";
+
+    document.getElementById("boton").textContent =
+      "⏹️ TERMINAR";
+
+  } catch (error) {
+
+    console.error(error);
+
+    document.getElementById("estado").textContent =
+      "NO SE PUDO ACTIVAR EL MICRÓFONO";
+
+  }
+}
+
+
+function detenerGrabacion() {
+
+  if (!grabador) return;
+
+  grabador.stop();
+
+  grabando = false;
+
+  document.getElementById("estado").textContent =
+    "PROCESANDO SU VOZ...";
+
+  document.getElementById("boton").textContent =
+    "🎙️ HABLAR";
+}
+
+
+function enviarAudio(blob) {
+
+  const lector = new FileReader();
+
+  lector.onloadend = function() {
+
+    const base64 = lector.result.split(",")[1];
+
+    if (window.opener) {
+
+      window.opener.postMessage({
+        type: "jarvis-audio",
+        data: base64,
+        mimeType: blob.type
+      }, "*");
+
+      document.getElementById("estado").textContent =
+        "AUDIO ENVIADO A JARVIS";
+
+      setTimeout(() => {
+        window.close();
+      }, 800);
+
+    } else {
+
+      document.getElementById("estado").textContent =
+        "ABRA ESTA PÁGINA DESDE JARVIS";
+
+    }
+  };
+
+  lector.readAsDataURL(blob);
+}
+
+</script>
+
+</body>
+</html>
